@@ -3,9 +3,9 @@ from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
-from app.models import User, Season, Week, Game, Pick, WeeklyResult
-from app.scoring import calculate_week_results
-from app.odds import fetch_odds_for_week
+from app.models import User, Game, Pick, WeekResult
+
+
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -16,7 +16,7 @@ def admin_required(f):
     def decorated(*args, **kwargs):
         if not current_user.is_admin:
             flash('Admin access required.', 'danger')
-            return redirect(url_for('main.index'))
+            return redirect(url_for('picks.weekly'))
         return f(*args, **kwargs)
     return decorated
 

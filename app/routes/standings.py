@@ -12,7 +12,7 @@ def index():
     season = Season.query.filter_by(is_active=True).first()
     if not season:
         flash('No active season.', 'info')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('picks.weekly'))
     return redirect(url_for('standings.yearly', season_id=season.id))
 
 

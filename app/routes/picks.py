@@ -28,7 +28,7 @@ def picks_index():
     season = Season.query.filter_by(is_active=True).first()
     if not season:
         flash('No active season.', 'info')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('picks.weekly'))
     return render_template('picks/index.html', season=season,
                            weeks=Week.query.filter_by(season_id=season.id).order_by(Week.week_number).all())
 
