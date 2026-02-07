@@ -14,4 +14,4 @@ class Config:
     ODDS_API_KEY = os.environ.get('ODDS_API_KEY', '')
     ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds"
     # WTF CSRF
-    WTF_CSRF_ENABLED = True
+    WTF_CSRF_ENABLED = False
