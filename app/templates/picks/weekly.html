@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Week {{ week }} Picks - NFL Pick'em{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-check2-square me-2"></i>Week {{ week }} Picks</h2>
+    <span class="badge bg-secondary fs-6">{{ season }} Season</span>
+</div>
+{% if available_weeks %}
+<div class="week-selector mb-4"><div class="btn-group flex-wrap" role="group">
+{% for w in available_weeks %}<a href="{{ url_for('picks.weekly', season=season, week=w) }}" class="btn btn-sm {% if w == week %}btn-primary active{% else %}btn-outline-secondary{% endif %}">{{ w }}</a>{% endfor %}
+</div></div>{% endif %}
+{% if not games %}
+<div class="card shadow-sm"><div class="card-body text-center py-5"><i class="bi bi-calendar-x text-muted" style="font-size: 3rem;"></i><p class="mt-3 text-muted">No games posted for Week {{ week }} yet.</p></div></div>
+{% else %}
+{% if can_pick %}
+<form method="POST" action="{{ url_for('picks.submit_picks') }}" id="picksForm">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="season" value="{{ season }}"><input type="hidden" name="week" value="{{ week }}">
+<div class="row g-3 mb-4">{% for game in games %}<div class="col-md-6 col-lg-4">
+<div class="card game-card shadow-sm h-100 position-relative {% if game.has_started %}game-locked{% endif %}">
+<div class="card-header d-flex justify-content-between align-items-center py-2">
+<small class="text-muted"><i class="bi bi-clock me-1"></i>{{ game.game_time.strftime('%a %m/%d %I:%M %p') }} UTC</small>
+{% if game.has_started %}<span class="badge bg-danger"><i class="bi bi-lock-fill me-1"></i>Locked</span>{% endif %}
+{% if game.is_final %}<span class="badge bg-success">Final: {{ game.away_score }}-{{ game.home_score }}</span>{% endif %}
+</div>
+<div class="card-body text-center">
+<div class="mb-3"><span class="badge spread-badge {% if game.spread == 0 %}spread-even{% else %}spread-fav{% endif %} fs-6">{{ game.spread_display }}</span></div>
+<div class="d-flex justify-content-center gap-2 align-items-center">
+<div class="form-check form-check-inline p-0">
+<input type="radio" class="btn-check" name="pick_{{ game.id }}" id="away_{{ game.id }}" value="{{ game.away_team }}" {% if user_picks.get(game.id) and user_picks[game.id].picked_team == game.away_team %}checked{% endif %} {% if game.has_started %}disabled{% endif %}>
+<label class="btn pick-btn {% if game.away_team == game.underdog %}btn-outline-success{% else %}btn-outline-danger{% endif %}" for="away_{{ game.id }}">{{ game.away_team }}{% if game.away_team == game.underdog %}<br><small class="opacity-75">+{{ game.spread|abs }}</small>{% elif game.away_team == game.favorite %}<br><small class="opacity-75">-{{ game.spread|abs }}</small>{% endif %}</label>
+</div>
+<span class="text-muted fw-bold">@</span>
+<div class="form-check form-check-inline p-0">
+<input type="radio" class="btn-check" name="pick_{{ game.id }}" id="home_{{ game.id }}" value="{{ game.home_team }}" {% if user_picks.get(game.id) and user_picks[game.id].picked_team == game.home_team %}checked{% endif %} {% if game.has_started %}disabled{% endif %}>
+<label class="btn pick-btn {% if game.home_team == game.underdog %}btn-outline-success{% else %}btn-outline-danger{% endif %}" for="home_{{ game.id }}">{{ game.home_team }}{% if game.home_team == game.underdog %}<br><small class="opacity-75">+{{ game.spread|abs }}</small>{% elif game.home_team == game.favorite %}<br><small class="opacity-75">-{{ game.spread|abs }}</small>{% endif %}</label>
+</div></div>
+{% if game.is_final and user_picks.get(game.id) %}{% set pts = game_points.get((current_user_id, game.id), 0) %}
+<div class="mt-2"><span class="fw-bold {% if pts > 0 %}points-positive{% elif pts < 0 %}points-negative{% else %}points-zero{% endif %}">{% if pts > 0 %}+{% endif %}{{ pts|round(1) }} pts</span></div>{% endif %}
+</div></div></div>{% endfor %}</div>
+<div class="text-center mb-4"><button type="submit" class="btn btn-primary btn-lg px-5"><i class="bi bi-send me-2"></i>{% if has_submitted %}Resubmit{% else %}Submit{% endif %} Picks</button>
+{% if has_submitted %}<p class="text-muted mt-2"><small>You can resubmit picks for games that haven't started yet.</small></p>{% endif %}</div>
+</form>
+{% else %}
+<div class="row g-3 mb-4">{% for game in games %}<div class="col-md-6 col-lg-4"><div class="card game-card shadow-sm h-100">
+<div class="card-header d-flex justify-content-between align-items-center py-2"><small class="text-muted">{{ game.game_time.strftime('%a %m/%d %I:%M %p') }} UTC</small>
+{% if game.is_final %}<span class="badge bg-success">Final: {{ game.away_score }}-{{ game.home_score }}</span>{% else %}<span class="badge bg-warning text-dark">In Progress</span>{% endif %}</div>
+<div class="card-body text-center">
+<div class="mb-2"><span class="badge spread-badge {% if game.spread == 0 %}spread-even{% else %}spread-fav{% endif %}">{{ game.spread_display }}</span></div>
+<div class="d-flex justify-content-center gap-3 align-items-center">
+<span class="fw-semibold {% if user_picks.get(game.id) and user_picks[game.id].picked_team == game.away_team %}text-warning{% endif %}">{% if user_picks.get(game.id) and user_picks[game.id].picked_team == game.away_team %}<i class="bi bi-check-circle-fill me-1"></i>{% endif %}{{ game.away_team }}</span>
+<span class="text-muted">@</span>
+<span class="fw-semibold {% if user_picks.get(game.id) and user_picks[game.id].picked_team == game.home_team %}text-warning{% endif %}">{% if user_picks.get(game.id) and user_picks[game.id].picked_team == game.home_team %}<i class="bi bi-check-circle-fill me-1"></i>{% endif %}{{ game.home_team }}</span>
+</div>
+{% if game.is_final and user_picks.get(game.id) %}{% set pts = game_points.get((current_user_id, game.id), 0) %}
+<div class="mt-2"><span class="fw-bold {% if pts > 0 %}points-positive{% elif pts < 0 %}points-negative{% else %}points-zero{% endif %}">{% if pts > 0 %}+{% endif %}{{ pts|round(1) }} pts</span></div>{% endif %}
+</div></div></div>{% endfor %}</div>
+{% endif %}
+{% if has_submitted and other_users %}
+<hr class="my-4"><h4 class="mb-3"><i class="bi bi-people me-2"></i>Other Players' Picks</h4>
+<div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Game</th><th>Spread</th>{% for u in other_users %}<th class="text-center">{{ u.username }}</th>{% endfor %}</tr></thead><tbody>
+{% for game in games %}<tr><td class="fw-semibold">{{ game.away_team }} @ {{ game.home_team }}</td>
+<td><span class="badge spread-badge {% if game.spread == 0 %}spread-even{% else %}spread-fav{% endif %}">{{ game.spread_display }}</span></td>
+{% for u in other_users %}<td class="text-center">{% if others_picks.get(u.id, {}).get(game.id) %}{% set pick = others_picks[u.id][game.id] %}<span class="{% if pick.picked_team == game.underdog %}text-success{% else %}text-danger{% endif %}">{{ pick.picked_team }}</span>{% if game.is_final %}{% set pts = game_points.get((u.id, game.id), 0) %}<br><small class="{% if pts > 0 %}points-positive{% elif pts < 0 %}points-negative{% else %}points-zero{% endif %}">{% if pts > 0 %}+{% endif %}{{ pts|round(1) }}</small>{% endif %}{% else %}<span class="text-muted">--</span>{% endif %}</td>{% endfor %}
+</tr>{% endfor %}</tbody></table></div></div>
+{% elif has_submitted and not other_users %}
+<div class="alert alert-info mt-4"><i class="bi bi-info-circle me-2"></i>No other players have submitted picks for this week yet.</div>
+{% elif not has_submitted %}
+<div class="alert alert-warning mt-4"><i class="bi bi-eye-slash me-2"></i>Submit your picks to see what other players have chosen.</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>document.querySelectorAll('.btn-check').forEach(input=>{input.addEventListener('change',function(){const name=this.name;document.querySelectorAll(`input[name="${name}"]`).forEach(sib=>{const label=document.querySelector(`label[for="${sib.id}"]`);if(label)label.classList.remove('active');});const label=document.querySelector(`label[for="${this.id}"]`);if(label)label.classList.add('active');});});</script>{% endblock %}

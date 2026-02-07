@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Enter Scores - NFL Pick'em{% endblock %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-pencil-square me-2"></i>Enter Scores</h2>
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <form method="GET" action="{{ url_for('admin.scores') }}" class="row g-3 align-items-end">
+        <div class="col-auto"><label class="form-label">Season</label><input type="number" name="season" class="form-control" value="{{ season }}" min="2020" max="2030"></div>
+        <div class="col-auto"><label class="form-label">Week</label><input type="number" name="week" class="form-control" value="{{ week }}" min="1" max="18"></div>
+        <div class="col-auto"><button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i>View</button></div>
+    </form>
+</div></div>
+<div class="card shadow-sm"><div class="card-header"><h5 class="mb-0">Week {{ week }} &mdash; {{ season }} Season</h5></div><div class="card-body">
+{% if games %}
+<form method="POST" action="{{ url_for('admin.save_scores') }}"><input type="hidden" name="season" value="{{ season }}"><input type="hidden" name="week" value="{{ week }}">
+<div class="table-responsive"><table class="table"><thead><tr><th>Away Team</th><th>Away Score</th><th></th><th>Home Team</th><th>Home Score</th><th>Spread</th><th>Status</th></tr></thead><tbody>
+{% for game in games %}<tr>
+<td class="fw-semibold align-middle">{{ game.away_team }}</td>
+<td><input type="number" name="away_score_{{ game.id }}" class="form-control form-control-sm" value="{{ game.away_score if game.away_score is not none else '' }}" min="0" style="width: 80px;"></td>
+<td class="text-muted align-middle">@</td>
+<td class="fw-semibold align-middle">{{ game.home_team }}</td>
+<td><input type="number" name="home_score_{{ game.id }}" class="form-control form-control-sm" value="{{ game.home_score if game.home_score is not none else '' }}" min="0" style="width: 80px;"></td>
+<td class="align-middle"><span class="badge spread-badge {% if game.spread > 0 %}spread-fav{% elif game.spread < 0 %}spread-dog{% else %}spread-even{% endif %}">{{ game.spread_display }}</span></td>
+<td class="align-middle">{% if game.is_final %}<span class="badge bg-success">Final</span>{% else %}<span class="badge bg-secondary">Pending</span>{% endif %}</td>
+</tr>{% endfor %}
+</tbody></table></div>
+<div class="d-flex gap-2"><button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save All Scores</button><a href="{{ url_for('admin.games', season=season, week=week) }}" class="btn btn-secondary">Back to Games</a></div>
+</form>
+{% else %}<p class="text-muted text-center py-4">No games for Week {{ week }}.</p>{% endif %}
+</div></div>
+{% endblock %}
