@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Manage Seasons - NFL Pick'em{% endblock %}
+{% block content %}
+<div class="page-header"><h1><i class="bi bi-calendar me-2"></i>Manage Seasons</h1></div>
+<div class="card mb-4">
+    <div class="card-header"><h5 class="mb-0">Create New Season</h5></div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.create_season') }}" class="row g-3 align-items-end">
+            <div class="col-auto"><label class="form-label small text-white-50">Year</label><input type="number" class="form-control" name="year" min="2020" max="2035" value="2025" required></div>
+            <div class="col-auto"><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Create Season</button></div>
+        </form>
+    </div>
+</div>
+{% for season in seasons %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{{ season.year }} Season {% if season.is_active %}<span class="badge bg-success ms-2">Active</span>{% endif %}</h5>
+        {% if not season.is_active %}<form method="POST" action="{{ url_for('admin.activate_season', season_id=season.id) }}"><button type="submit" class="btn btn-sm btn-outline-success">Activate</button></form>{% endif %}
+    </div>
+    <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0">
+        <thead><tr><th>Week</th><th>Games</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for week in season.weeks %}<tr>
+            <td class="fw-bold">Week {{ week.week_number }}</td>
+            <td>{{ week.games.count() }} games</td>
+            <td>{% if week.is_completed %}<span class="badge bg-success">Completed</span>{% elif week.is_open_for_picks %}<span class="badge bg-primary">Open</span>{% else %}<span class="badge bg-secondary">Closed</span>{% endif %}</td>
+            <td><a href="{{ url_for('admin.manage_week', week_id=week.id) }}" class="btn btn-sm btn-outline-light"><i class="bi bi-gear me-1"></i>Manage</a></td>
+        </tr>{% endfor %}
+        </tbody>
+    </table></div></div>
+</div>
+{% else %}
+<div class="card"><div class="card-body text-center py-5"><h3 class="text-white-50">No Seasons</h3><p class="text-white-50">Create a season above to get started.</p></div></div>
+{% endfor %}
+{% endblock %}
