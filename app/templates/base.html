@@ -29,20 +29,13 @@
         .page-header { padding: 2rem 0 1rem; }
         .page-header h1 { font-weight: 800; font-size: 2rem; color: #fff; }
         .page-header p { color: rgba(255,255,255,0.6); }
-        .pick-card { cursor: pointer; transition: all 0.3s; border: 2px solid transparent; padding: 1rem; border-radius: 12px; background: rgba(255,255,255,0.03); }
-        .pick-card:hover { background: rgba(255,255,255,0.08); border-color: rgba(79,195,247,0.3); }
-        .pick-card.selected { border-color: #4fc3f7; background: rgba(79,195,247,0.1); }
-        .team-name { font-weight: 700; font-size: 1.1rem; }
-        .spread-badge { font-size: 0.85rem; padding: 0.3em 0.8em; border-radius: 20px; }
-        .underdog-badge { background: rgba(255,152,0,0.2); color: #ffb74d; }
-        .favorite-badge { background: rgba(76,175,80,0.2); color: #81c784; }
+        .stats-card { text-align: center; padding: 1.5rem; }
+        .stats-card .stat-value { font-size: 2rem; font-weight: 800; background: linear-gradient(135deg, #4fc3f7, #81d4fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stats-card .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.5); }
         .points-positive { color: #66bb6a; font-weight: 700; }
         .points-negative { color: #ef5350; font-weight: 700; }
         .points-zero { color: rgba(255,255,255,0.5); }
         .winner-glow { box-shadow: 0 0 20px rgba(255,215,0,0.3); border: 1px solid rgba(255,215,0,0.3); }
-        .stats-card { text-align: center; padding: 1.5rem; }
-        .stats-card .stat-value { font-size: 2rem; font-weight: 800; background: linear-gradient(135deg, #4fc3f7, #81d4fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .stats-card .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.5); }
         .modal-content { background: #1a2a3a; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; }
         @media (max-width: 768px) { .page-header h1 { font-size: 1.5rem; } .table { font-size: 0.85rem; } }
     </style>
@@ -51,7 +44,7 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="{% if current_user.is_authenticated %}{{ url_for('picks.weekly') }}{% else %}{{ url_for('auth.login') }}{% endif %}">
+            <a class="navbar-brand" href="{% if current_user.is_authenticated %}{{ url_for('main.index') }}{% else %}{{ url_for('auth.login') }}{% endif %}">
                 <i class="bi bi-trophy-fill me-2"></i>NFL Pick'em
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -60,17 +53,15 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if current_user.is_authenticated %}
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('picks.weekly') }}"><i class="bi bi-check2-square me-1"></i>Picks</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('picks.history') }}"><i class="bi bi-clock-history me-1"></i>History</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('standings.weekly') }}"><i class="bi bi-bar-chart me-1"></i>Weekly</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('standings.yearly') }}"><i class="bi bi-trophy me-1"></i>Yearly</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('main.index') }}"><i class="bi bi-house me-1"></i>Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('picks.picks_index') }}"><i class="bi bi-check2-square me-1"></i>Picks</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('standings.index') }}"><i class="bi bi-bar-chart me-1"></i>Standings</a></li>
                     {% if current_user.is_admin %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"><i class="bi bi-gear me-1"></i>Admin</a>
                         <ul class="dropdown-menu dropdown-menu-dark">
                             <li><a class="dropdown-item" href="{{ url_for('admin.users') }}"><i class="bi bi-people me-2"></i>Manage Users</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('admin.games') }}"><i class="bi bi-calendar me-2"></i>Manage Games</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('admin.scores') }}"><i class="bi bi-pencil-square me-2"></i>Enter Scores</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.seasons') }}"><i class="bi bi-calendar me-2"></i>Manage Seasons</a></li>
                         </ul>
                     </li>
                     {% endif %}
@@ -78,7 +69,7 @@
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle me-1"></i>{{ current_user.username }}
+                            <i class="bi bi-person-circle me-1"></i>{{ current_user.display_name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
                             <li><a class="dropdown-item" href="{{ url_for('auth.change_password') }}"><i class="bi bi-key me-2"></i>Change Password</a></li>
@@ -94,7 +85,6 @@
     <main class="container py-3">
         {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}
         <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' %}exclamation-triangle{% elif category == 'warning' %}exclamation-circle{% else %}info-circle{% endif %} me-2"></i>
             {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>{% endfor %}{% endif %}{% endwith %}
         {% block content %}{% endblock %}
