@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
-from app.models import User, Game, Pick, WeekResult
-from app.forms import AddUserForm, EditUserForm, ImportOddsForm, ManualGameForm
+from app.models import User, Season, Week, Game, Pick, WeeklyResult
+from app.scoring import calculate_week_results
+from app.odds import fetch_odds_for_week
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -15,7 +16,7 @@ def admin_required(f):
     def decorated(*args, **kwargs):
         if not current_user.is_admin:
             flash('Administrator access required.', 'danger')
-            return redirect(url_for('picks.weekly'))
+            return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated
 
@@ -24,116 +25,181 @@ def admin_required(f):
 @admin_required
 def users():
     all_users = User.query.order_by(User.username).all()
-    form = AddUserForm()
-    return render_template('admin/users.html', users=all_users, form=form)
+    return render_template('admin/users.html', users=all_users)
 
 
 @admin_bp.route('/users/add', methods=['POST'])
 @admin_required
 def add_user():
-    form = AddUserForm()
-    if form.validate_on_submit():
-        if User.query.filter_by(username=form.username.data).first():
-            flash(f'Username already exists.', 'danger')
-            return redirect(url_for('admin.users'))
-        if User.query.filter_by(email=form.email.data).first():
-            flash(f'Email already in use.', 'danger')
-            return redirect(url_for('admin.users'))
-        user = User(username=form.username.data, email=form.email.data, is_admin=form.is_admin.data)
-        user.set_password(form.password.data)
-        db.session.add(user)
-        db.session.commit()
-        flash(f'User created successfully.', 'success')
-    else:
-        for field, errors in form.errors.items():
-            for error in errors:
-                flash(f'{field}: {error}', 'danger')
+    username = request.form.get('username', '').strip()
+    display_name = request.form.get('display_name', '').strip()
+    email = request.form.get('email', '').strip()
+    password = request.form.get('password', '')
+    is_admin = bool(request.form.get('is_admin'))
+    if not username or not email or not password or not display_name:
+        flash('All fields are required.', 'danger')
+        return redirect(url_for('admin.users'))
+    if User.query.filter_by(username=username).first():
+        flash('Username already exists.', 'danger')
+        return redirect(url_for('admin.users'))
+    if User.query.filter_by(email=email).first():
+        flash('Email already in use.', 'danger')
+        return redirect(url_for('admin.users'))
+    user = User(username=username, display_name=display_name, email=email, is_admin=is_admin)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    flash(f'User "{display_name}" created successfully.', 'success')
     return redirect(url_for('admin.users'))
 
 
-@admin_bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
+@admin_bp.route('/users/<int:user_id>/toggle', methods=['POST'])
 @admin_required
-def edit_user(user_id):
+def toggle_user_active(user_id):
     user = db.session.get(User, user_id)
-    if not user:
-        flash('User not found.', 'danger')
-        return redirect(url_for('admin.users'))
-    form = EditUserForm(obj=user)
-    if request.method == 'GET':
-        form.is_active.data = user.is_active_user
-    if form.validate_on_submit():
-        user.email = form.email.data
-        user.is_admin = form.is_admin.data
-        user.is_active_user = form.is_active.data
-        if form.password.data:
-            user.set_password(form.password.data)
+    if user:
+        user.is_active_player = not user.is_active_player
         db.session.commit()
-        flash('User updated.', 'success')
-        return redirect(url_for('admin.users'))
-    return render_template('admin/edit_user.html', user=user, form=form)
+        status = 'activated' if user.is_active_player else 'deactivated'
+        flash(f'{user.display_name} has been {status}.', 'info')
+    return redirect(url_for('admin.users'))
 
 
-@admin_bp.route('/games')
+@admin_bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
 @admin_required
-def games():
-    season = request.args.get('season', datetime.now().year, type=int)
-    week = request.args.get('week', 1, type=int)
-    game_list = Game.query.filter_by(season=season, week=week).order_by(Game.game_time).all()
-    import_form = ImportOddsForm()
-    import_form.season.data = season
-    import_form.week.data = week
-    manual_form = ManualGameForm()
-    manual_form.season.data = season
-    manual_form.week.data = week
-    return render_template('admin/games.html', games=game_list, season=season, week=week, import_form=import_form, manual_form=manual_form)
-
-
-@admin_bp.route('/games/import', methods=['POST'])
-@admin_required
-def import_odds():
-    form = ImportOddsForm()
-    if form.validate_on_submit():
-        week = form.week.data
-        season = form.season.data
-        try:
-            from app.services.odds import fetch_odds, determine_nfl_week
-            odds_data = fetch_odds()
-            count = 0
-            for g in odds_data:
-                game_week = determine_nfl_week(g['game_time'], season)
-                if game_week != week:
-                    continue
-                existing = Game.query.filter_by(api_id=g['api_id']).first() if g['api_id'] else None
-                if existing:
-                    existing.spread = g['spread']
-                    existing.game_time = g['game_time']
-                else:
-                    game = Game(week=week, season=season, home_team=g['home_team'], away_team=g['away_team'], spread=g['spread'], game_time=g['game_time'], api_id=g['api_id'])
-                    db.session.add(game)
-                count += 1
+def reset_password(user_id):
+    user = db.session.get(User, user_id)
+    if user:
+        new_pw = request.form.get('new_password', '')
+        if len(new_pw) < 4:
+            flash('Password must be at least 4 characters.', 'danger')
+        else:
+            user.set_password(new_pw)
             db.session.commit()
-            flash(f'Imported {count} games for Week {week}.', 'success')
-        except Exception as e:
-            flash(f'Error importing odds: {str(e)}', 'danger')
-    return redirect(url_for('admin.games', season=form.season.data, week=form.week.data))
+            flash(f'Password reset for {user.display_name}.', 'success')
+    return redirect(url_for('admin.users'))
 
 
-@admin_bp.route('/games/add', methods=['POST'])
+@admin_bp.route('/seasons')
 @admin_required
-def add_game():
-    form = ManualGameForm()
-    if form.validate_on_submit():
-        try:
-            game_time = datetime.strptime(form.game_time.data, '%Y-%m-%d %H:%M')
-            game_time = game_time.replace(tzinfo=timezone.utc)
-        except ValueError:
-            flash('Invalid date format. Use YYYY-MM-DD HH:MM', 'danger')
-            return redirect(url_for('admin.games', season=form.season.data, week=form.week.data))
-        game = Game(week=form.week.data, season=form.season.data, home_team=form.home_team.data, away_team=form.away_team.data, spread=form.spread.data, game_time=game_time)
-        db.session.add(game)
+def seasons():
+    all_seasons = Season.query.order_by(Season.year.desc()).all()
+    return render_template('admin/seasons.html', seasons=all_seasons)
+
+
+@admin_bp.route('/seasons/create', methods=['POST'])
+@admin_required
+def create_season():
+    year = request.form.get('year', type=int)
+    if not year:
+        flash('Year is required.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    if Season.query.filter_by(year=year).first():
+        flash(f'Season {year} already exists.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    Season.query.update({Season.is_active: False})
+    season = Season(year=year, is_active=True)
+    db.session.add(season)
+    db.session.flush()
+    for wn in range(1, 19):
+        db.session.add(Week(season_id=season.id, week_number=wn))
+    db.session.commit()
+    flash(f'Season {year} created with 18 weeks.', 'success')
+    return redirect(url_for('admin.seasons'))
+
+
+@admin_bp.route('/seasons/<int:season_id>/activate', methods=['POST'])
+@admin_required
+def activate_season(season_id):
+    Season.query.update({Season.is_active: False})
+    season = db.session.get(Season, season_id)
+    if season:
+        season.is_active = True
         db.session.commit()
-        flash(f'{game.away_team} @ {game.home_team} added.', 'success')
-    return redirect(url_for('admin.games', season=form.season.data, week=form.week.data))
+        flash(f'Season {season.year} activated.', 'success')
+    return redirect(url_for('admin.seasons'))
+
+
+@admin_bp.route('/weeks/<int:week_id>')
+@admin_required
+def manage_week(week_id):
+    week = db.session.get(Week, week_id)
+    if not week:
+        flash('Week not found.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    games = Game.query.filter_by(week_id=week.id).order_by(Game.game_time).all()
+    return render_template('admin/manage_week.html', week=week, games=games)
+
+
+@admin_bp.route('/weeks/<int:week_id>/toggle-picks', methods=['POST'])
+@admin_required
+def toggle_picks(week_id):
+    week = db.session.get(Week, week_id)
+    if week:
+        week.is_open_for_picks = not week.is_open_for_picks
+        db.session.commit()
+        status = 'opened' if week.is_open_for_picks else 'closed'
+        flash(f'Picks {status} for Week {week.week_number}.', 'info')
+    return redirect(url_for('admin.manage_week', week_id=week_id))
+
+
+@admin_bp.route('/weeks/<int:week_id>/fetch-odds', methods=['POST'])
+@admin_required
+def fetch_odds(week_id):
+    week = db.session.get(Week, week_id)
+    if not week:
+        flash('Week not found.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    try:
+        count = fetch_odds_for_week(week)
+        flash(f'Fetched/updated {count} games for Week {week.week_number}.', 'success')
+    except Exception as e:
+        flash(f'Error fetching odds: {str(e)}', 'danger')
+    return redirect(url_for('admin.manage_week', week_id=week_id))
+
+
+@admin_bp.route('/weeks/<int:week_id>/calculate', methods=['POST'])
+@admin_required
+def calculate_results(week_id):
+    week = db.session.get(Week, week_id)
+    if not week:
+        flash('Week not found.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    calculate_week_results(week)
+    flash(f'Results calculated for Week {week.week_number}.', 'success')
+    return redirect(url_for('admin.manage_week', week_id=week_id))
+
+
+@admin_bp.route('/weeks/<int:week_id>/complete', methods=['POST'])
+@admin_required
+def complete_week(week_id):
+    week = db.session.get(Week, week_id)
+    if week:
+        week.is_completed = True
+        week.is_open_for_picks = False
+        db.session.commit()
+        flash(f'Week {week.week_number} marked as completed.', 'success')
+    return redirect(url_for('admin.manage_week', week_id=week_id))
+
+
+@admin_bp.route('/weeks/<int:week_id>/save-scores', methods=['POST'])
+@admin_required
+def save_scores(week_id):
+    week = db.session.get(Week, week_id)
+    if not week:
+        flash('Week not found.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    games = Game.query.filter_by(week_id=week.id).all()
+    for game in games:
+        hs = request.form.get(f'home_score_{game.id}')
+        aws = request.form.get(f'away_score_{game.id}')
+        if hs is not None and aws is not None and hs != '' and aws != '':
+            game.home_score = int(hs)
+            game.away_score = int(aws)
+            game.is_final = True
+    db.session.commit()
+    flash(f'Scores saved for Week {week.week_number}.', 'success')
+    return redirect(url_for('admin.manage_week', week_id=week_id))
 
 
 @admin_bp.route('/games/<int:game_id>/delete', methods=['POST'])
@@ -141,50 +207,10 @@ def add_game():
 def delete_game(game_id):
     game = db.session.get(Game, game_id)
     if game:
+        week_id = game.week_id
         Pick.query.filter_by(game_id=game.id).delete()
         db.session.delete(game)
         db.session.commit()
         flash('Game deleted.', 'info')
-    return redirect(request.referrer or url_for('admin.games'))
-
-
-@admin_bp.route('/scores')
-@admin_required
-def scores():
-    season = request.args.get('season', datetime.now().year, type=int)
-    week = request.args.get('week', 1, type=int)
-    game_list = Game.query.filter_by(season=season, week=week).order_by(Game.game_time).all()
-    return render_template('admin/scores.html', games=game_list, season=season, week=week)
-
-
-@admin_bp.route('/scores/save', methods=['POST'])
-@admin_required
-def save_scores():
-    season = request.form.get('season', datetime.now().year, type=int)
-    week = request.form.get('week', 1, type=int)
-    for game in Game.query.filter_by(season=season, week=week).all():
-        hs = request.form.get(f'home_score_{game.id}')
-        aws = request.form.get(f'away_score_{game.id}')
-        if hs and aws and hs != '' and aws != '':
-            game.home_score = int(hs)
-            game.away_score = int(aws)
-            game.is_final = True
-    db.session.commit()
-    flash(f'Scores saved for Week {week}.', 'success')
-    return redirect(url_for('admin.scores', season=season, week=week))
-
-
-@admin_bp.route('/recalculate', methods=['POST'])
-@admin_required
-def recalculate():
-    season = request.form.get('season', datetime.now().year, type=int)
-    week = request.form.get('week', 0, type=int)
-    from app.services.scoring import recalculate_week
-    if week > 0:
-        recalculate_week(season, week)
-        flash(f'Week {week} recalculated.', 'success')
-    else:
-        for (w,) in db.session.query(Game.week).filter_by(season=season).distinct().all():
-            recalculate_week(season, w)
-        flash(f'All weeks in {season} recalculated.', 'success')
-    return redirect(url_for('standings.weekly', season=season, week=week if week > 0 else 1))
+        return redirect(url_for('admin.manage_week', week_id=week_id))
+    return redirect(url_for('admin.seasons'))
