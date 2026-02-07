@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Yearly Standings - NFL Pick'em{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="bi bi-trophy me-2"></i>{{ season.year }} Season Standings</h1>
+    <p>Yearly & Weekly Prize Race</p>
+</div>
+
+<ul class="nav nav-pills mb-4">
+    <li class="nav-item"><a class="nav-link active" href="{{ url_for('standings.yearly', season_id=season.id) }}"><i class="bi bi-trophy me-1"></i>Yearly Standings</a></li>
+    <li class="nav-item"><a class="nav-link" href="{{ url_for('standings.weekly', season_id=season.id) }}"><i class="bi bi-calendar-week me-1"></i>Weekly Results</a></li>
+</ul>
+
+{% if standings %}
+<div class="card mb-4">
+    <div class="card-header"><h5 class="mb-0"><i class="bi bi-trophy-fill me-2" style="color: gold;"></i>Yearly Prize Race (Total Points)</h5></div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th><th>Player</th><th class="text-center">Total Points</th><th class="text-center">Winning Picks</th>
+                        <th class="text-center">Total Picks</th><th class="text-center">Weekly Wins</th><th class="text-center">Status</th>
+                        {% for week in weeks %}<th class="text-center" style="min-width: 50px;"><small>W{{ week.week_number }}</small></th>{% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in standings %}
+                    <tr class="{{ 'winner-glow' if loop.first and entry.is_qualified }}">
+                        <td>{{ loop.index }}</td>
+                        <td class="fw-bold text-nowrap">
+                            {{ entry.user.display_name }}
+                            {% if loop.first and entry.is_qualified %}<i class="bi bi-trophy-fill ms-1" style="color: gold;"></i>{% endif %}
+                        </td>
+                        <td class="text-center fw-bold fs-5">
+                            <span class="{{ 'points-positive' if entry.total_points > 0 else 'points-negative' if entry.total_points < 0 else 'points-zero' }}">{{ '%+.0f'|format(entry.total_points) }}</span>
+                        </td>
+                        <td class="text-center">{{ entry.total_winning_picks }}</td>
+                        <td class="text-center">{{ entry.total_picks }}</td>
+                        <td class="text-center">
+                            {% if entry.weekly_wins > 0 %}<span class="badge bg-warning text-dark">{{ '%.1f'|format(entry.weekly_wins) }}</span>
+                            {% else %}<span class="text-white-50">0</span>{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if entry.is_qualified %}<span class="badge bg-success">Qualified</span>
+                            {% else %}<span class="badge bg-danger">DQ</span>{% endif %}
+                        </td>
+                        {% for week in weeks %}
+                        <td class="text-center">
+                            {% if entry.user.id in weekly_data and week.week_number in weekly_data[entry.user.id] %}
+                                {% set wr = weekly_data[entry.user.id][week.week_number] %}
+                                <span class="small {{ 'points-positive' if wr.total_points > 0 else 'points-negative' if wr.total_points < 0 else 'points-zero' }}">{{ '%+.0f'|format(wr.total_points) }}</span>
+                                {% if wr.weekly_win_share > 0 %}<br><i class="bi bi-star-fill" style="color: gold; font-size: 0.6rem;"></i>{% endif %}
+                            {% else %}<span class="text-white-50">--</span>{% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if weekly_prize_info.standings %}
+<div class="card">
+    <div class="card-header"><h5 class="mb-0"><i class="bi bi-calendar-check me-2" style="color: #4fc3f7;"></i>Weekly Prize Race</h5></div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>#</th><th>Player</th><th class="text-center">Weekly Wins</th><th class="text-center">W Picks in Win Weeks</th><th>Win Weeks</th></tr></thead>
+                <tbody>
+                    {% for entry in weekly_prize_info.standings %}
+                    {% if entry.total_wins > 0 %}
+                    <tr class="{{ 'winner-glow' if entry in weekly_prize_info.winners }}">
+                        <td>{{ loop.index }}</td>
+                        <td class="fw-bold">
+                            {{ entry.user.display_name }}
+                            {% if entry in weekly_prize_info.winners %}<i class="bi bi-trophy-fill ms-1" style="color: #4fc3f7;"></i>{% endif %}
+                        </td>
+                        <td class="text-center"><span class="badge bg-primary">{{ '%.1f'|format(entry.total_wins) }}</span></td>
+                        <td class="text-center">{{ entry.winning_picks_in_win_weeks }}</td>
+                        <td>{% for wn in entry.win_weeks %}<span class="badge bg-secondary me-1">W{{ wn }}</span>{% endfor %}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-hourglass" style="font-size: 3rem; color: rgba(255,255,255,0.3);"></i>
+    <h3 class="mt-3 text-white-50">No Results Yet</h3>
+    <p class="text-white-50">Standings will appear after the first week is completed.</p>
+</div>
+{% endif %}
+{% endblock %}

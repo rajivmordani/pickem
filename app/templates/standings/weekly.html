@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Weekly Results - NFL Pick'em{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="bi bi-calendar-week me-2"></i>{{ season.year }} Weekly Results</h1>
+    <p>Week-by-week breakdown</p>
+</div>
+
+<ul class="nav nav-pills mb-4">
+    <li class="nav-item"><a class="nav-link" href="{{ url_for('standings.yearly', season_id=season.id) }}"><i class="bi bi-trophy me-1"></i>Yearly Standings</a></li>
+    <li class="nav-item"><a class="nav-link active" href="{{ url_for('standings.weekly', season_id=season.id) }}"><i class="bi bi-calendar-week me-1"></i>Weekly Results</a></li>
+</ul>
+
+{% if weeks %}
+{% for week in weeks|reverse %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-calendar-event me-2"></i>Week {{ week.week_number }}</h5>
+        <div>
+            {% if weekly_winners[week.id].winners %}
+            <span style="color: gold;">
+                <i class="bi bi-trophy-fill me-1"></i>
+                {% for wr in weekly_winners[week.id].winners %}{{ wr.user.display_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>#</th><th>Player</th><th class="text-center">Points</th><th class="text-center">Picks</th><th class="text-center">Winning Picks</th><th class="text-center">Win Share</th></tr></thead>
+                <tbody>
+                    {% for result in weekly_winners[week.id].results %}
+                    <tr class="{{ 'winner-glow' if result.weekly_win_share > 0 }}">
+                        <td>{{ loop.index }}</td>
+                        <td class="fw-bold">
+                            {{ result.user.display_name }}
+                            {% if result.weekly_win_share > 0 %}<i class="bi bi-trophy-fill ms-1" style="color: gold;"></i>{% endif %}
+                            {% if not result.is_eligible %}<span class="badge bg-warning text-dark ms-1" title="Less than 4 picks">!</span>{% endif %}
+                        </td>
+                        <td class="text-center fw-bold">
+                            <span class="{{ 'points-positive' if result.total_points > 0 else 'points-negative' if result.total_points < 0 else 'points-zero' }}">{{ '%+.0f'|format(result.total_points) }}</span>
+                        </td>
+                        <td class="text-center">{{ result.num_picks }}</td>
+                        <td class="text-center">{{ result.winning_picks }}</td>
+                        <td class="text-center">
+                            {% if result.weekly_win_share > 0 %}<span class="badge bg-success">{{ '%.1f'|format(result.weekly_win_share) if result.weekly_win_share < 1 else '1.0' }}</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer text-end">
+        <a href="{{ url_for('picks.week_results', week_id=week.id) }}" class="btn btn-sm btn-outline-light"><i class="bi bi-eye me-1"></i>View Detailed Picks</a>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="text-center py-5">
+    <h3 class="text-white-50">No Completed Weeks</h3>
+    <p class="text-white-50">Weekly results will appear as weeks are completed.</p>
+</div>
+{% endif %}
+{% endblock %}

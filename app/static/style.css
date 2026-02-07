@@ -1,0 +1,151 @@
+/* NFL Pick'em Custom Styles */
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #1a1d23;
+}
+
+main {
+    flex: 1;
+}
+
+.navbar-brand {
+    font-size: 1.3rem;
+    letter-spacing: 0.5px;
+}
+
+.card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: #212529;
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.game-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.pick-btn {
+    min-width: 140px;
+    padding: 0.6rem 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.pick-btn.active,
+.pick-btn:checked + label {
+    transform: scale(1.05);
+}
+
+.spread-badge {
+    font-size: 0.85rem;
+    padding: 0.35em 0.65em;
+}
+
+.spread-fav {
+    background-color: rgba(220, 53, 69, 0.2);
+    color: #ea868f;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.spread-dog {
+    background-color: rgba(25, 135, 84, 0.2);
+    color: #75b798;
+    border: 1px solid rgba(25, 135, 84, 0.3);
+}
+
+.spread-even {
+    background-color: rgba(255, 193, 7, 0.2);
+    color: #ffda6a;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.points-positive {
+    color: #75b798;
+    font-weight: 700;
+}
+
+.points-negative {
+    color: #ea868f;
+    font-weight: 700;
+}
+
+.points-zero {
+    color: #6c757d;
+    font-weight: 600;
+}
+
+.weekly-winner {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+    border-left: 3px solid #ffc107;
+}
+
+.yearly-winner {
+    background-color: rgba(25, 135, 84, 0.1) !important;
+    border-left: 3px solid #198754;
+}
+
+.table {
+    --bs-table-bg: transparent;
+}
+
+.table thead th {
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    color: #adb5bd;
+}
+
+.game-locked {
+    opacity: 0.6;
+}
+
+.week-selector .btn {
+    min-width: 42px;
+}
+
+.week-selector .btn.active {
+    font-weight: 700;
+}
+
+.login-container {
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+    .pick-btn {
+        min-width: 100px;
+        font-size: 0.85rem;
+    }
+
+    .table {
+        font-size: 0.85rem;
+    }
+}
+
+.alert {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
