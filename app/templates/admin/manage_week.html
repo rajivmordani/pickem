@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Week {{ week.week_number }} - Admin - NFL Pick'em{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1><i class="bi bi-calendar-week me-2"></i>Week {{ week.week_number }} &mdash; {{ week.season.year }}</h1>
+    <p>Manage games, odds, scores, and results</p>
+</div>
+
+<div class="d-flex gap-2 mb-4 flex-wrap">
+    <form method="POST" action="{{ url_for('admin.toggle_picks', week_id=week.id) }}" class="d-inline">
+        <button type="submit" class="btn {% if week.is_open_for_picks %}btn-warning{% else %}btn-success{% endif %}">
+            <i class="bi bi-{% if week.is_open_for_picks %}lock{% else %}unlock{% endif %} me-1"></i>
+            {% if week.is_open_for_picks %}Close Picks{% else %}Open Picks{% endif %}
+        </button>
+    </form>
+    <form method="POST" action="{{ url_for('admin.fetch_odds', week_id=week.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-cloud-download me-1"></i>Fetch Games &amp; Odds</button>
+    </form>
+    <form method="POST" action="{{ url_for('admin.calculate_results', week_id=week.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-outline-info"><i class="bi bi-calculator me-1"></i>Calculate Results</button>
+    </form>
+    {% if not week.is_completed %}
+    <form method="POST" action="{{ url_for('admin.complete_week', week_id=week.id) }}" class="d-inline" onsubmit="return confirm('Mark Week {{ week.week_number }} as completed?');">
+        <button type="submit" class="btn btn-outline-success"><i class="bi bi-check-circle me-1"></i>Mark Completed</button>
+    </form>
+    {% else %}
+    <span class="btn btn-success disabled"><i class="bi bi-check-circle-fill me-1"></i>Completed</span>
+    {% endif %}
+    <a href="{{ url_for('admin.seasons') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Back to Seasons</a>
+</div>
+
+<!-- Games List -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Games ({{ games|length }})</h5>
+    </div>
+    <div class="card-body p-0">
+        <form method="POST" action="{{ url_for('admin.save_scores', week_id=week.id) }}">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Away</th><th></th><th>Home</th><th>Spread</th>
+                            <th>Game Time (UTC)</th><th>Away Score</th><th>Home Score</th>
+                            <th>Status</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for game in games %}
+                        <tr>
+                            <td class="fw-semibold">{{ game.away_team }}</td>
+                            <td class="text-muted">@</td>
+                            <td class="fw-semibold">{{ game.home_team }}</td>
+                            <td>
+                                {% if game.spread is not none %}
+                                <span class="badge spread-badge">{{ game.spread_display }}</span>
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if game.game_time %}{{ game.game_time.strftime('%a %m/%d %I:%M %p') }}{% else %}TBD{% endif %}
+                            </td>
+                            <td>
+                                <input type="number" name="away_score_{{ game.id }}" class="form-control form-control-sm"
+                                       value="{{ game.away_score if game.away_score is not none else '' }}" min="0" style="width: 80px;">
+                            </td>
+                            <td>
+                                <input type="number" name="home_score_{{ game.id }}" class="form-control form-control-sm"
+                                       value="{{ game.home_score if game.home_score is not none else '' }}" min="0" style="width: 80px;">
+                            </td>
+                            <td>
+                                {% if game.is_final %}<span class="badge bg-success">Final</span>
+                                {% elif game.has_started %}<span class="badge bg-warning text-dark">In Progress</span>
+                                {% else %}<span class="badge bg-info">Upcoming</span>{% endif %}
+                            </td>
+                            <td>
+                                <form method="POST" action="{{ url_for('admin.delete_game', game_id=game.id) }}"
+                                      onsubmit="return confirm('Delete this game?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not games %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">
+                                No games yet. Use "Fetch Games & Odds" to import from ESPN/API.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% if games %}
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Scores</button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

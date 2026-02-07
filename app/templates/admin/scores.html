@@ -11,7 +11,9 @@
 </div></div>
 <div class="card shadow-sm"><div class="card-header"><h5 class="mb-0">Week {{ week }} &mdash; {{ season }} Season</h5></div><div class="card-body">
 {% if games %}
-<form method="POST" action="{{ url_for('admin.save_scores') }}"><input type="hidden" name="season" value="{{ season }}"><input type="hidden" name="week" value="{{ week }}">
+<form method="POST" action="{{ url_for('admin.save_scores') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="season" value="{{ season }}"><input type="hidden" name="week" value="{{ week }}">
 <div class="table-responsive"><table class="table"><thead><tr><th>Away Team</th><th>Away Score</th><th></th><th>Home Team</th><th>Home Score</th><th>Spread</th><th>Status</th></tr></thead><tbody>
 {% for game in games %}<tr>
 <td class="fw-semibold align-middle">{{ game.away_team }}</td>

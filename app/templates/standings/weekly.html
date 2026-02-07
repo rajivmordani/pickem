@@ -2,49 +2,46 @@
 {% block title %}Weekly Results - NFL Pick'em{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1><i class="bi bi-calendar-week me-2"></i>{{ season.year }} Weekly Results</h1>
+    <h1><i class="bi bi-calendar-week me-2"></i>{{ season }} Weekly Results</h1>
     <p>Week-by-week breakdown</p>
 </div>
 
-<ul class="nav nav-pills mb-4">
-    <li class="nav-item"><a class="nav-link" href="{{ url_for('standings.yearly', season_id=season.id) }}"><i class="bi bi-trophy me-1"></i>Yearly Standings</a></li>
-    <li class="nav-item"><a class="nav-link active" href="{{ url_for('standings.weekly', season_id=season.id) }}"><i class="bi bi-calendar-week me-1"></i>Weekly Results</a></li>
-</ul>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <ul class="nav nav-pills">
+        <li class="nav-item"><a class="nav-link active" href="{{ url_for('standings.weekly', season=season) }}"><i class="bi bi-calendar-week me-1"></i>Weekly</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('standings.yearly', season=season) }}"><i class="bi bi-trophy me-1"></i>Yearly</a></li>
+    </ul>
+</div>
 
-{% if weeks %}
-{% for week in weeks|reverse %}
+{% if available_weeks %}
+<div class="week-selector mb-4"><div class="btn-group flex-wrap" role="group">
+{% for w in available_weeks %}<a href="{{ url_for('standings.weekly', season=season, week=w) }}" class="btn btn-sm {% if w == week %}btn-primary active{% else %}btn-outline-secondary{% endif %}">W{{ w }}</a>{% endfor %}
+</div></div>
+{% endif %}
+
+{% if results %}
 <div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-calendar-event me-2"></i>Week {{ week.week_number }}</h5>
-        <div>
-            {% if weekly_winners[week.id].winners %}
-            <span style="color: gold;">
-                <i class="bi bi-trophy-fill me-1"></i>
-                {% for wr in weekly_winners[week.id].winners %}{{ wr.user.display_name }}{% if not loop.last %}, {% endif %}{% endfor %}
-            </span>
-            {% endif %}
-        </div>
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-calendar-event me-2"></i>Week {{ week }} Results</h5>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover mb-0">
-                <thead><tr><th>#</th><th>Player</th><th class="text-center">Points</th><th class="text-center">Picks</th><th class="text-center">Winning Picks</th><th class="text-center">Win Share</th></tr></thead>
+                <thead><tr><th>#</th><th>Player</th><th class="text-center">Points</th><th class="text-center">Winning Picks</th><th class="text-center">Weekly Win</th></tr></thead>
                 <tbody>
-                    {% for result in weekly_winners[week.id].results %}
-                    <tr class="{{ 'winner-glow' if result.weekly_win_share > 0 }}">
+                    {% for result in results %}
+                    <tr class="{{ 'winner-glow' if result.weekly_wins > 0 }}">
                         <td>{{ loop.index }}</td>
                         <td class="fw-bold">
-                            {{ result.user.display_name }}
-                            {% if result.weekly_win_share > 0 %}<i class="bi bi-trophy-fill ms-1" style="color: gold;"></i>{% endif %}
-                            {% if not result.is_eligible %}<span class="badge bg-warning text-dark ms-1" title="Less than 4 picks">!</span>{% endif %}
+                            {{ user_map[result.user_id].username }}
+                            {% if result.weekly_wins > 0 %}<i class="bi bi-trophy-fill ms-1" style="color: gold;"></i>{% endif %}
                         </td>
                         <td class="text-center fw-bold">
-                            <span class="{{ 'points-positive' if result.total_points > 0 else 'points-negative' if result.total_points < 0 else 'points-zero' }}">{{ '%+.0f'|format(result.total_points) }}</span>
+                            <span class="{{ 'points-positive' if result.total_points > 0 else 'points-negative' if result.total_points < 0 else 'points-zero' }}">{{ '%+.1f'|format(result.total_points) }}</span>
                         </td>
-                        <td class="text-center">{{ result.num_picks }}</td>
-                        <td class="text-center">{{ result.winning_picks }}</td>
+                        <td class="text-center">{{ result.winning_picks_count }}</td>
                         <td class="text-center">
-                            {% if result.weekly_win_share > 0 %}<span class="badge bg-success">{{ '%.1f'|format(result.weekly_win_share) if result.weekly_win_share < 1 else '1.0' }}</span>{% endif %}
+                            {% if result.weekly_wins > 0 %}<span class="badge bg-success">{{ '%.1f'|format(result.weekly_wins) }}</span>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -52,15 +49,37 @@
             </table>
         </div>
     </div>
-    <div class="card-footer text-end">
-        <a href="{{ url_for('picks.week_results', week_id=week.id) }}" class="btn btn-sm btn-outline-light"><i class="bi bi-eye me-1"></i>View Detailed Picks</a>
+</div>
+
+{% if user_pick_details %}
+<div class="card">
+    <div class="card-header"><h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Detailed Picks</h5></div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>Player</th><th>Game</th><th>Pick</th><th class="text-center">Points</th></tr></thead>
+                <tbody>
+                    {% for user_id, picks in user_pick_details.items() %}
+                    {% for detail in picks %}
+                    <tr>
+                        {% if loop.first %}<td rowspan="{{ picks|length }}" class="fw-bold align-middle">{{ user_map[user_id].username }}</td>{% endif %}
+                        <td>{{ detail.game.away_team }} @ {{ detail.game.home_team }}</td>
+                        <td>{{ detail.picked_team }}</td>
+                        <td class="text-center"><span class="{{ 'points-positive' if detail.points > 0 else 'points-negative' if detail.points < 0 else 'points-zero' }}">{{ '%+.1f'|format(detail.points) }}</span></td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
-{% endfor %}
+{% endif %}
+
 {% else %}
 <div class="text-center py-5">
-    <h3 class="text-white-50">No Completed Weeks</h3>
-    <p class="text-white-50">Weekly results will appear as weeks are completed.</p>
+    <h3 class="text-white-50">No Results Yet</h3>
+    <p class="text-white-50">Weekly results will appear after scores are entered and results are calculated.</p>
 </div>
 {% endif %}
 {% endblock %}

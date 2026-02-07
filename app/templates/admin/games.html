@@ -12,8 +12,8 @@
 <div class="d-flex gap-2 mb-4 flex-wrap">
     <form method="POST" action="{{ url_for('admin.import_odds') }}" class="d-inline">{{ import_form.hidden_tag() }}<input type="hidden" name="week" value="{{ week }}"><input type="hidden" name="season" value="{{ season }}"><button type="submit" class="btn btn-success"><i class="bi bi-cloud-download me-1"></i>Import Spreads from API</button></form>
     <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addGameModal"><i class="bi bi-plus-lg me-1"></i>Add Game Manually</button>
-    <form method="POST" action="{{ url_for('admin.recalculate') }}" class="d-inline"><input type="hidden" name="season" value="{{ season }}"><input type="hidden" name="week" value="{{ week }}"><button type="submit" class="btn btn-outline-warning"><i class="bi bi-calculator me-1"></i>Recalculate Week {{ week }}</button></form>
-    <form method="POST" action="{{ url_for('admin.recalculate') }}" class="d-inline"><input type="hidden" name="season" value="{{ season }}"><input type="hidden" name="week" value="0"><button type="submit" class="btn btn-outline-danger"><i class="bi bi-calculator me-1"></i>Recalculate All Weeks</button></form>
+    <form method="POST" action="{{ url_for('admin.recalculate') }}" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="season" value="{{ season }}"><input type="hidden" name="week" value="{{ week }}"><button type="submit" class="btn btn-outline-warning"><i class="bi bi-calculator me-1"></i>Recalculate Week {{ week }}</button></form>
+    <form method="POST" action="{{ url_for('admin.recalculate') }}" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="season" value="{{ season }}"><input type="hidden" name="week" value="0"><button type="submit" class="btn btn-outline-danger"><i class="bi bi-calculator me-1"></i>Recalculate All Weeks</button></form>
 </div>
 <div class="card shadow-sm"><div class="card-header"><h5 class="mb-0">Week {{ week }} &mdash; {{ season }} Season ({{ games|length }} games)</h5></div>
 <div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Away</th><th></th><th>Home</th><th>Spread</th><th>Game Time (UTC)</th><th>Score</th><th>Status</th><th>Actions</th></tr></thead><tbody>
@@ -23,7 +23,7 @@
 <td>{{ game.game_time.strftime('%a %m/%d %I:%M %p') }}</td>
 <td>{% if game.is_final %}{{ game.away_score }} - {{ game.home_score }}{% else %}<span class="text-muted">--</span>{% endif %}</td>
 <td>{% if game.is_final %}<span class="badge bg-success">Final</span>{% elif game.has_started %}<span class="badge bg-warning text-dark">In Progress</span>{% else %}<span class="badge bg-info">Upcoming</span>{% endif %}</td>
-<td><form method="POST" action="{{ url_for('admin.delete_game', game_id=game.id) }}" onsubmit="return confirm('Delete this game?');" class="d-inline"><button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></td>
+<td><form method="POST" action="{{ url_for('admin.delete_game', game_id=game.id) }}" onsubmit="return confirm('Delete this game?');" class="d-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></td>
 </tr>{% endfor %}
 {% if not games %}<tr><td colspan="8" class="text-center text-muted py-4">No games for Week {{ week }}. Import spreads or add games manually.</td></tr>{% endif %}
 </tbody></table></div></div>
