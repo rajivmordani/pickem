@@ -1,5 +1,5 @@
 from app import db
-from app.models import User, Week, Game, Pick, WeeklyResult
+from app.models import User, Week, Game, Pick, WeeklyResult, SeasonEntry
 
 
 def calculate_week_results(week):
@@ -112,3 +112,138 @@ def calculate_yearly_standings(season):
                    'is_qualified': qual})
     st.sort(key=lambda x: (-int(x['is_qualified']), -x['total_points'], -x['weekly_wins'], -x['winning_picks_in_win_weeks']))
     return st
+
+
+def get_yearly_winners(season):
+    """Get yearly prize winners from the yearly standings."""
+    standings = calculate_yearly_standings(season)
+    if not standings:
+        return []
+    
+    # Get qualified players
+    qualified = [s for s in standings if s['is_qualified']]
+    if not qualified:
+        return []
+    
+    # Get best score
+    best = qualified[0]
+    
+    # Get all tied with best score
+    winners = [s for s in qualified if 
+               s['total_points'] == best['total_points'] and 
+               s['weekly_wins'] == best['weekly_wins'] and 
+               s['winning_picks_in_win_weeks'] == best['winning_picks_in_win_weeks']]
+    
+    return winners
+
+
+def calculate_prize_pool(season):
+    """
+    Calculate prize pool distribution based on entry fees and winners.
+
+    Rules (1c-1f):
+    - Each winner gets their entry fee refunded (one refund per unique person).
+    - The "remaining entry fees" are computed by subtracting one refund slot
+      per prize category (yearly + weekly = 2 slots), regardless of whether
+      the same person wins both.
+    - Yearly winners split 2/3 of the remaining.
+    - Weekly winners split 1/3 of the remaining.
+
+    Example with 8 players at $30 ($240 pool):
+      remaining = $240 - 2*$30 = $180
+      yearly prize = $180 * 2/3 = $120
+      weekly prize = $180 * 1/3 = $60
+      Different winners: yearly person gets $30+$120=$150, weekly person gets $30+$60=$90
+      Same winner: one person gets $30+$120+$60 = $210
+    """
+    entries = SeasonEntry.query.filter_by(season_id=season.id, has_paid=True).all()
+
+    if not entries:
+        return {
+            'total_pool': 0,
+            'num_players': 0,
+            'entry_fee': season.entry_fee,
+            'yearly_winners': [],
+            'weekly_winners': [],
+            'yearly_prize_per_winner': 0,
+            'weekly_prize_per_winner': 0,
+            'yearly_total': 0,
+            'weekly_total': 0,
+            'total_refunds': 0,
+            'remaining_after_refunds': 0,
+        }
+
+    total_pool = sum(e.amount_paid or season.entry_fee for e in entries)
+    num_players = len(entries)
+
+    # Get winners
+    yearly_winners = get_yearly_winners(season)
+    weekly_prize_info = calculate_weekly_prize_winner(season)
+    weekly_winners = weekly_prize_info['winners']
+
+    # "Remaining entry fees" always reserves 2 refund slots (one per prize
+    # category) so the prize amounts stay constant regardless of overlap.
+    num_refund_slots = 0
+    if yearly_winners:
+        num_refund_slots += 1
+    if weekly_winners:
+        num_refund_slots += 1
+    remaining = max(0, total_pool - num_refund_slots * season.entry_fee)
+
+    yearly_share = remaining * (2.0 / 3.0)
+    weekly_share = remaining * (1.0 / 3.0)
+
+    yearly_per_winner = yearly_share / len(yearly_winners) if yearly_winners else 0
+    weekly_per_winner = weekly_share / len(weekly_winners) if weekly_winners else 0
+
+    # Unique winner user IDs (for refund calculation)
+    yearly_user_ids = set(w['user'].id for w in yearly_winners if w.get('user'))
+    weekly_user_ids = set(w['user'].id for w in weekly_winners if w.get('user'))
+    all_winner_ids = yearly_user_ids | weekly_user_ids
+    total_refunds = len(all_winner_ids) * season.entry_fee
+
+    # Build per-winner breakdown
+    yearly_winners_with_prizes = []
+    for w in yearly_winners:
+        user = w['user']
+        is_also_weekly = user.id in weekly_user_ids
+        total_prize = season.entry_fee + yearly_per_winner
+        if is_also_weekly:
+            total_prize += weekly_per_winner
+        yearly_winners_with_prizes.append({
+            **w,
+            'prize_amount': total_prize,
+            'yearly_prize': yearly_per_winner,
+            'weekly_prize': weekly_per_winner if is_also_weekly else 0,
+            'refund': season.entry_fee,
+            'is_also_weekly_winner': is_also_weekly,
+        })
+
+    weekly_winners_with_prizes = []
+    for w in weekly_winners:
+        user = w['user']
+        is_also_yearly = user.id in yearly_user_ids
+        if not is_also_yearly:
+            total_prize = season.entry_fee + weekly_per_winner
+            weekly_winners_with_prizes.append({
+                **w,
+                'prize_amount': total_prize,
+                'yearly_prize': 0,
+                'weekly_prize': weekly_per_winner,
+                'refund': season.entry_fee,
+                'is_also_yearly_winner': False,
+            })
+
+    return {
+        'total_pool': total_pool,
+        'num_players': num_players,
+        'entry_fee': season.entry_fee,
+        'yearly_winners': yearly_winners_with_prizes,
+        'weekly_winners': weekly_winners_with_prizes,
+        'yearly_prize_per_winner': yearly_per_winner,
+        'weekly_prize_per_winner': weekly_per_winner,
+        'yearly_total': yearly_share,
+        'weekly_total': weekly_share,
+        'total_refunds': total_refunds,
+        'remaining_after_refunds': remaining,
+    }
