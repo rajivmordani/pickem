@@ -6,9 +6,46 @@
     <li class="nav-item"><a class="nav-link active" href="{{ url_for('standings.yearly', season_id=season.id) }}">Yearly Standings</a></li>
     <li class="nav-item"><a class="nav-link" href="{{ url_for('standings.weekly', season_id=season.id) }}">Weekly Results</a></li>
 </ul>
+
+{% if prize_pool.total_pool > 0 %}
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="stat-value">${{ prize_pool.total_pool }}</div>
+            <div class="stat-label">Total Prize Pool</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="stat-value">${{ '%.0f'|format(prize_pool.yearly_total) }}</div>
+            <div class="stat-label">Yearly Prize (2/3)</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="stat-value">${{ '%.0f'|format(prize_pool.weekly_total) }}</div>
+            <div class="stat-label">Weekly Prize (1/3)</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="stat-value">{{ prize_pool.num_players }}</div>
+            <div class="stat-label">Paid Players</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% if standings %}
 <div class="card mb-4">
-<div class="card-header"><h5 class="mb-0"><i class="bi bi-trophy-fill me-2" style="color: gold;"></i>Yearly Prize Race</h5></div>
+<div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-trophy-fill me-2" style="color: gold;"></i>Yearly Prize Race</h5>
+        {% if prize_pool.yearly_winners %}
+        <span class="badge bg-warning text-dark fs-6">Winner Prize: ${{ '%.2f'|format(prize_pool.yearly_prize_per_winner + season.entry_fee) }}</span>
+        {% endif %}
+    </div>
+</div>
 <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0">
 <thead><tr><th>#</th><th>Player</th><th class="text-center">Total Points</th><th class="text-center">Winning Picks</th><th class="text-center">Total Picks</th><th class="text-center">Weekly Wins</th><th class="text-center">Status</th>
 {% for week in weeks %}<th class="text-center" style="min-width:50px;"><small>W{{ week.week_number }}</small></th>{% endfor %}
@@ -30,7 +67,14 @@
 </tr>{% endfor %}</tbody></table></div></div></div>
 {% if weekly_prize_info.standings %}
 <div class="card">
-<div class="card-header"><h5 class="mb-0">Weekly Prize Race</h5></div>
+<div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Weekly Prize Race</h5>
+        {% if prize_pool.weekly_winners %}
+        <span class="badge bg-info text-dark fs-6">Winner Prize: ${{ '%.2f'|format(prize_pool.weekly_prize_per_winner + season.entry_fee) }}</span>
+        {% endif %}
+    </div>
+</div>
 <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0">
 <thead><tr><th>#</th><th>Player</th><th class="text-center">Weekly Wins</th><th class="text-center">W Picks in Win Weeks</th><th>Win Weeks</th></tr></thead>
 <tbody>{% for entry in weekly_prize_info.standings %}{% if entry.total_wins > 0 %}<tr class="{{ 'winner-glow' if entry in weekly_prize_info.winners }}">

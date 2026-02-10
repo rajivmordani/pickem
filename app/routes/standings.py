@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash
 from flask_login import login_required
 from app import db
 from app.models import Season, Week, WeeklyResult
-from app.scoring import calculate_weekly_prize_winner, calculate_yearly_standings
+from app.scoring import calculate_weekly_prize_winner, calculate_yearly_standings, calculate_prize_pool
 
 standings_bp = Blueprint('standings', __name__)
 
@@ -26,6 +26,7 @@ def yearly(season_id):
         return redirect(url_for('standings.index'))
     standings = calculate_yearly_standings(season)
     weekly_prize_info = calculate_weekly_prize_winner(season)
+    prize_pool = calculate_prize_pool(season)
     weeks = Week.query.filter_by(season_id=season.id, is_completed=True).order_by(Week.week_number).all()
     weekly_data = {}
     for w in weeks:
@@ -34,7 +35,7 @@ def yearly(season_id):
     return render_template(
         'standings/yearly.html',
         season=season, standings=standings, weekly_prize_info=weekly_prize_info,
-        weeks=weeks, weekly_data=weekly_data,
+        weeks=weeks, weekly_data=weekly_data, prize_pool=prize_pool,
     )
 
 

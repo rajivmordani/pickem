@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
-from app.models import User, Season, Week, Game, Pick, WeeklyResult
-from app.scoring import calculate_week_results
+from app.models import User, Season, Week, Game, Pick, WeeklyResult, SeasonEntry
+from app.scoring import calculate_week_results, calculate_prize_pool
 from app.odds import fetch_odds_for_week
 
 admin_bp = Blueprint('admin', __name__)
@@ -91,6 +91,7 @@ def seasons():
 @admin_required
 def create_season():
     year = request.form.get('year', type=int)
+    entry_fee = request.form.get('entry_fee', type=int) or 30
     if not year:
         flash('Year is required.', 'danger')
         return redirect(url_for('admin.seasons'))
@@ -98,13 +99,13 @@ def create_season():
         flash(f'Season {year} already exists.', 'danger')
         return redirect(url_for('admin.seasons'))
     Season.query.update({Season.is_active: False})
-    season = Season(year=year, is_active=True)
+    season = Season(year=year, is_active=True, entry_fee=entry_fee)
     db.session.add(season)
     db.session.flush()
     for wn in range(1, 19):
         db.session.add(Week(season_id=season.id, week_number=wn))
     db.session.commit()
-    flash(f'Season {year} created with 18 weeks.', 'success')
+    flash(f'Season {year} created with 18 weeks and ${entry_fee} entry fee.', 'success')
     return redirect(url_for('admin.seasons'))
 
 
@@ -214,3 +215,89 @@ def delete_game(game_id):
         flash('Game deleted.', 'info')
         return redirect(url_for('admin.manage_week', week_id=week_id))
     return redirect(url_for('admin.seasons'))
+
+
+@admin_bp.route('/seasons/<int:season_id>/prize-pool')
+@admin_required
+def prize_pool(season_id):
+    season = db.session.get(Season, season_id)
+    if not season:
+        flash('Season not found.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    
+    # Get all active users
+    users = User.query.filter_by(is_active_player=True).order_by(User.display_name).all()
+    
+    # Get season entries
+    entries = {e.user_id: e for e in SeasonEntry.query.filter_by(season_id=season.id).all()}
+    
+    # Calculate prize pool
+    prize_info = calculate_prize_pool(season)
+    
+    return render_template('admin/prize_pool.html', 
+                         season=season, 
+                         users=users, 
+                         entries=entries,
+                         prize_info=prize_info)
+
+
+@admin_bp.route('/seasons/<int:season_id>/entries/add-all', methods=['POST'])
+@admin_required
+def add_all_entries(season_id):
+    season = db.session.get(Season, season_id)
+    if not season:
+        flash('Season not found.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    
+    users = User.query.filter_by(is_active_player=True).all()
+    count = 0
+    for user in users:
+        existing = SeasonEntry.query.filter_by(season_id=season.id, user_id=user.id).first()
+        if not existing:
+            entry = SeasonEntry(season_id=season.id, user_id=user.id, has_paid=False)
+            db.session.add(entry)
+            count += 1
+    
+    db.session.commit()
+    flash(f'Added {count} players to season {season.year}.', 'success')
+    return redirect(url_for('admin.prize_pool', season_id=season_id))
+
+
+@admin_bp.route('/seasons/<int:season_id>/entries/<int:user_id>/toggle-paid', methods=['POST'])
+@admin_required
+def toggle_entry_paid(season_id, user_id):
+    entry = SeasonEntry.query.filter_by(season_id=season_id, user_id=user_id).first()
+    if not entry:
+        season = db.session.get(Season, season_id)
+        if not season:
+            flash('Season not found.', 'danger')
+            return redirect(url_for('admin.seasons'))
+        entry = SeasonEntry(season_id=season_id, user_id=user_id, has_paid=True, amount_paid=season.entry_fee)
+        db.session.add(entry)
+    else:
+        entry.has_paid = not entry.has_paid
+        if entry.has_paid and not entry.amount_paid:
+            season = db.session.get(Season, season_id)
+            entry.amount_paid = season.entry_fee if season else 30
+    
+    db.session.commit()
+    return redirect(url_for('admin.prize_pool', season_id=season_id))
+
+
+@admin_bp.route('/seasons/<int:season_id>/update-entry-fee', methods=['POST'])
+@admin_required
+def update_entry_fee(season_id):
+    season = db.session.get(Season, season_id)
+    if not season:
+        flash('Season not found.', 'danger')
+        return redirect(url_for('admin.seasons'))
+    
+    new_fee = request.form.get('entry_fee', type=int)
+    if new_fee and new_fee > 0:
+        season.entry_fee = new_fee
+        db.session.commit()
+        flash(f'Entry fee updated to ${new_fee}.', 'success')
+    else:
+        flash('Invalid entry fee.', 'danger')
+    
+    return redirect(url_for('admin.prize_pool', season_id=season_id))

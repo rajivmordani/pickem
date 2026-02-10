@@ -32,8 +32,10 @@ class Season(db.Model):
     year = db.Column(db.Integer, unique=True, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     total_weeks = db.Column(db.Integer, default=18)
+    entry_fee = db.Column(db.Integer, default=30)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     weeks = db.relationship("Week", backref="season", lazy="dynamic", order_by="Week.week_number")
+    entries = db.relationship("SeasonEntry", backref="season", lazy="dynamic")
 
 
 class Week(db.Model):
@@ -159,3 +161,15 @@ class WeeklyResult(db.Model):
     user = db.relationship("User", backref="weekly_results")
     week = db.relationship("Week", backref="weekly_results")
     __table_args__ = (db.UniqueConstraint("user_id", "week_id", name="uq_user_week_result"),)
+
+
+class SeasonEntry(db.Model):
+    __tablename__ = "season_entries"
+    id = db.Column(db.Integer, primary_key=True)
+    season_id = db.Column(db.Integer, db.ForeignKey("seasons.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    has_paid = db.Column(db.Boolean, default=False)
+    amount_paid = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    user = db.relationship("User", backref="season_entries")
+    __table_args__ = (db.UniqueConstraint("season_id", "user_id", name="uq_season_user"),)

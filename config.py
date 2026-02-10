@@ -15,3 +15,12 @@ class Config:
     ODDS_API_URL = "https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds"
     # WTF CSRF
     WTF_CSRF_ENABLED = False
+    # Email settings (optional - if not configured, emails won't be sent)
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', '')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
+    MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', 'false').lower() == 'true'
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME', '')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@pickem.local')
+    MAIL_ENABLED = bool(os.environ.get('MAIL_SERVER', ''))

@@ -107,6 +107,7 @@ def submit_picks(week_id):
         flash("You cannot resubmit picks after viewing others' picks.", 'danger')
         return redirect(url_for('picks.make_picks', week_id=week_id))
     games = Game.query.filter_by(week_id=week.id).all()
+    games_by_id = {g.id: g for g in games}
     new_picks = {}
     for game in games:
         picked_team = request.form.get(f'pick_{game.id}')
@@ -129,5 +130,24 @@ def submit_picks(week_id):
     for game_id, team in new_picks.items():
         db.session.add(Pick(user_id=current_user.id, game_id=game_id, picked_team=team))
     db.session.commit()
+    
+    # Send confirmation email
+    try:
+        from app.email import send_picks_confirmation
+        picks_data = []
+        for game_id, team in new_picks.items():
+            game = games_by_id.get(game_id)
+            if game:
+                picks_data.append({
+                    'picked_team': team,
+                    'away_team': game.away_team,
+                    'home_team': game.home_team,
+                    'spread_display': game.spread_display,
+                })
+        send_picks_confirmation(current_user, week, picks_data)
+    except Exception as e:
+        # Email is optional, don't fail if it doesn't work
+        pass
+    
     flash(f'Picks submitted for Week {week.week_number}! You made {len(new_picks)} pick(s).', 'success')
     return redirect(url_for('picks.make_picks', week_id=week_id))

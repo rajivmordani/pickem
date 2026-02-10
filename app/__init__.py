@@ -15,6 +15,10 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     login_manager.init_app(app)
+    
+    # Initialize email if configured
+    from app.email import init_mail
+    init_mail(app)
 
     from app.models import User
 
